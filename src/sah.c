@@ -52,7 +52,7 @@ int main(int argc, char *argv[]){
         }
     }
     else{
-        fprintf(stderr, "usage:\n");
+        fprintf(stderr, "usage: sah -S [-s] -[y/u]\n");
         exit(1);
     }
     
