@@ -1126,7 +1126,7 @@ int pull_aur(git_repository *repo){
 	}
 		
 	if(analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE){
-		printf("Already up to date. Reinstall?[y/N] ");
+		printf(" Already up to date. Reinstall? [y/N] ");
 		fflush(stdout);
 
 		char yn;
@@ -1250,7 +1250,7 @@ void fatal(char *mesg, void *left, ...){
 
 	fprintf(stderr, "sah: %s\n", buff);
 	if(left){
-		printf("This package could not be installed. Continue anyway? [y/N] ");
+		printf(" This package could not be installed. Continue anyway? [y/N] ");
 		fflush(stdout);
 
 		char yn;

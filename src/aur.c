@@ -16,6 +16,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <locale.h>
@@ -626,7 +627,7 @@ static string_t *aur_prepare_url (const char *aur_rpc_type)
 	return url;
 }
 
-static unsigned int aur_request_search (alpm_list_t **targets, CURL *curl)
+alpm_list_t* aur_request_search (alpm_list_t **targets, CURL *curl)
 {
 	alpm_list_t *pkgs = NULL;
 	char error[256] = {0};
@@ -684,10 +685,12 @@ static unsigned int aur_request_search (alpm_list_t **targets, CURL *curl)
 		}
 	}
 
-	alpm_list_free_inner (pkgs, (alpm_list_fn_free) aur_pkg_free);
-	alpm_list_free (pkgs);
+	/*alpm_list_free_inner (pkgs, (alpm_list_fn_free) aur_pkg_free);
+	alpm_list_free (pkgs);*/
 
-	return pkgs_found;
+	//FREELIST(*targets);
+
+	return pkgs;
 }
 
 alpm_list_t* exclude(alpm_list_t *excl){
@@ -698,7 +701,7 @@ alpm_list_t* exclude(alpm_list_t *excl){
 	char *tok;
 	aurpkg_t *pkg;
 
-	puts("Choose packages to exclude from update: (\"1 2 3\", \"1-3\")");
+	puts(" Choose packages to exclude from update: (\"1 2 3\", \"1-3\")");
 	fgets(input, BUFFER-1, stdin);
 	tok = strtok(input, " ");
 	
@@ -738,8 +741,8 @@ alpm_list_t* exclude(alpm_list_t *excl){
 	return excl;
 }
 
-void install(aurpkg_t* pkg, alpm_list_t *t){
-	printf("Installing %s...\n", pkg->name);
+int install(aurpkg_t* pkg, alpm_list_t *t){
+
 	/*
 	 * exec will substitute current process with makepkg
 	 * fork called to substitute child for makepkg
@@ -754,10 +757,9 @@ void install(aurpkg_t* pkg, alpm_list_t *t){
 
 		if(chdir(path))
 			fatal("Failed to change directory", alpm_list_next(t));
-		
 		char yn;
 		char dep[3];
-		printf("Uninstall make dependencies after installation?[Y/n] ");
+		printf(" Remove make dependencies after compilation? [Y/n] ");
 		fflush(stdout);
 		scanf(" %c", &yn);
 		switch(yn){
@@ -774,11 +776,17 @@ void install(aurpkg_t* pkg, alpm_list_t *t){
 				break;
 		}
 
+		/*
+		 * see comment at the start of sah.c
+		 */
+		setenv("LANG", (const char*)config.lang, 1);
+
 		char *args[] = {"makepkg", "-sic", dep, NULL};
 		execvp(args[0], args);
 		fatal("makepkg failed to start", t);
-		return;
+		return -1;
 	}
+	return 0;
 }
 
 
@@ -786,7 +794,10 @@ void install(aurpkg_t* pkg, alpm_list_t *t){
 	
 void aur_upgrade(alpm_list_t *to_upgrade, CURL *curl){
 	aurpkg_t * pkg;
-	int r;
+	int r = 0;
+
+	if(config.filter & F_SYNC)
+		printf("++ Starting AUR upgrade...\n");
 
 	for(const alpm_list_t *t = to_upgrade; t; t = alpm_list_next(t)){
 		pkg = t->data;
@@ -795,8 +806,8 @@ void aur_upgrade(alpm_list_t *to_upgrade, CURL *curl){
 		snprintf(url, URLBUFFER-1, "%s/%s.git", config.aur_url, pkg->name);
 		snprintf(path, BUFFER-1, "%s/%s", config.format_out, pkg->name);
 
+		printf(" Installing %s...\n", pkg->name);
 		
-
 		/*
 		 * make directory
 		 * if directory didn't exist, clone
@@ -807,7 +818,7 @@ void aur_upgrade(alpm_list_t *to_upgrade, CURL *curl){
 		if(!mkdir(path, 0755)){
 			if(git_clone(&repo, url, path, NULL)){
 				const git_error *error = git_error_last();
-				fatal("git: %s\n", error->message);
+				fatal("git: %s\n", NULL, error->message);
 				continue;
 			}
 		}
@@ -818,7 +829,7 @@ void aur_upgrade(alpm_list_t *to_upgrade, CURL *curl){
 					continue;
 				else if(r == -1){
 					const git_error *error = git_error_last();
-					fatal("git: %s\n", error->message);
+					fatal("git: %s\n", NULL, error->message);
 					continue;
 				}
 			}
@@ -834,7 +845,7 @@ void aur_upgrade(alpm_list_t *to_upgrade, CURL *curl){
 
 
 
-static unsigned int aur_request_info (alpm_list_t **targets, CURL *curl)
+alpm_list_t* aur_request_info (alpm_list_t **targets, CURL *curl)
 {
 	/*
 	 * if local package is found to not be available in the AUR, remove it
@@ -852,11 +863,13 @@ static unsigned int aur_request_info (alpm_list_t **targets, CURL *curl)
 	unsigned int pkgs_found = 0;
 	target_arg_t *ta = target_arg_init ((ta_dup_fn) strdup, (alpm_list_fn_cmp) strcmp, free);
 	const alpm_list_t *t = real_targets;
-
+	
+	alpm_list_t *pkgs = NULL;
 	//create rpc url
 	while (t) {
 		bool fetch_waiting = false;
 		string_t *url = aur_prepare_url (AUR_RPC_INFO);
+
 		for (int args_left = AUR_MAX_ARG; t && args_left--; t = alpm_list_next (t)) {
 			const target_t *one_target = t->data;
 			char *encoded_arg = curl_easy_escape (curl, one_target->name, 0);
@@ -876,7 +889,7 @@ static unsigned int aur_request_info (alpm_list_t **targets, CURL *curl)
 		}
 		
 		//call aur rpc web interface and parse returned json file
-		alpm_list_t *pkgs = aur_json_parse (curl_fetch (curl, string_cstr (url)), NULL);
+		pkgs = aur_json_parse (curl_fetch (curl, string_cstr (url)), NULL);
 		string_free (url);
 
 		if(config.filter & F_SYNC){
@@ -910,35 +923,36 @@ static unsigned int aur_request_info (alpm_list_t **targets, CURL *curl)
 				else
 					pkgs = alpm_list_remove_item(pkgs, p);
 			}
-			pkgs = exclude(pkgs);
+			if(pkgs_found)
+				pkgs = exclude(pkgs);
 		}
 
-		aur_upgrade(pkgs, curl);
+		
+		/*if(pkgs_found || config.filter ^ F_SYNC)
+			pkgs_found = aur_upgrade(pkgs, curl);*/
 
-		alpm_list_free_inner (pkgs, (alpm_list_fn_free) aur_pkg_free);
-		alpm_list_free (pkgs);
+		/*alpm_list_free_inner (pkgs, (alpm_list_fn_free) aur_pkg_free);
+		alpm_list_free (pkgs);*/
 	}
 
 	/* target_arg_close() must be called before freeing real_targets */
 	*targets = target_arg_close (ta, *targets);
+	//FREELIST(*targets);
+
 	alpm_list_free_inner (real_targets, (alpm_list_fn_free) target_free);
 	alpm_list_free (real_targets);
 
-	return pkgs_found;
+	
+	return pkgs;
 }
 
-unsigned int aur_request (alpm_list_t **targets, aurrequest_t type)
+alpm_list_t* aur_request (alpm_list_t **targets, aurrequest_t type, CURL *curl)
 {
-	CURL *curl = (strncmp (config.aur_url, "https", strlen ("https")) == 0) ?
-			curl_init (CURL_GLOBAL_SSL) : curl_init (CURL_GLOBAL_NOTHING);
-	if (!curl) {
-		return 0;
-	}
-	const unsigned int aur_pkgs_found = (type == AUR_SEARCH)
+	alpm_list_t *to_upgrade = (type == AUR_SEARCH)
 		? aur_request_search (targets, curl)
 		: (aur_request_info (targets, curl));
 
-	return aur_pkgs_found;
+	return to_upgrade;
 }
 
 

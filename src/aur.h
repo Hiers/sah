@@ -20,6 +20,7 @@
 #define PQ_AUR_H
 #include <stdbool.h>
 #include <alpm_list.h>
+#include <curl/curl.h>
 
 /*
  * AUR package
@@ -74,11 +75,13 @@ const char *aur_pkg_get_name (const aurpkg_t *pkg);
 unsigned int aur_pkg_get_votes (const aurpkg_t *pkg);
 double aur_pkg_get_popularity (const aurpkg_t *pkg);
 
+void aur_upgrade(alpm_list_t *to_upgrade, CURL *curl);
+
 /*
  * AUR search/info function
- * Returns number of packages found
+ * Returns alpm_list_t of packages to upgrade
  */
-unsigned int aur_request (alpm_list_t **targets, aurrequest_t type);
+alpm_list_t* aur_request (alpm_list_t **targets, aurrequest_t type, CURL *curl);
 
 /*
  * aur_get_str() get info for package

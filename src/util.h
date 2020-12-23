@@ -143,6 +143,7 @@ typedef struct _aq_config
 	stype_t sort;
 	bool rsort;
 	int number;
+	char *lang;
 } aq_config;
 
 extern aq_config config;
