@@ -853,6 +853,7 @@ alpm_list_t* aur_request_info (alpm_list_t **targets, CURL *curl)
 	alpm_list_t *real_targets = NULL;
 	for (const alpm_list_t *t = *targets; t; t = alpm_list_next (t)) {
 		target_t *one_target = target_parse (t->data);
+
 		if (one_target->db && strcmp (one_target->db, AUR_REPO) != 0) {
 			target_free (one_target);
 		} else {
@@ -891,6 +892,8 @@ alpm_list_t* aur_request_info (alpm_list_t **targets, CURL *curl)
 		//call aur rpc web interface and parse returned json file
 		pkgs = aur_json_parse (curl_fetch (curl, string_cstr (url)), NULL);
 		string_free (url);
+
+		if(pkgs)
 
 		if(config.filter & F_SYNC){
 			for (alpm_list_t *p = pkgs; p; p = alpm_list_next (p)) {

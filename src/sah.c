@@ -90,7 +90,7 @@ int main(int argc, char *argv[]){
 
     printf("\033[1m++ Fetching information from the AUR...\033[22m\n");
     if(config.filter & F_SYNC){
-        alpm_search_local(config.filter & F_SYNC, "%n>%v", &targets);
+		alpm_search_local (F_FOREIGN | (config.filter & ~F_SYNC), "%n>%v", &targets);
         update = aur_request(&targets, AUR_INFO, curl);
         config.filter ^= F_SYNC;
     }

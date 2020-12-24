@@ -1130,7 +1130,7 @@ int pull_aur(git_repository *repo){
 		fflush(stdout);
 
 		char yn;
-		scanf("%c", &yn);
+		scanf(" %c", &yn);
 		switch(yn){
 			case 'y':
 			case 'Y':
