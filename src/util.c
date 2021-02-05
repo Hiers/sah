@@ -1127,11 +1127,10 @@ int pull_aur(git_repository *repo){
 		
 	if(analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE){
 		printf(" Already up to date. Reinstall? [y/N] ");
-		fflush(stdout);
 
-		char yn;
-		scanf(" %c", &yn);
-		switch(yn){
+		char yn[2];
+		fgets(yn, 2, stdin);
+		switch(yn[0]){
 			case 'y':
 			case 'Y':
 				return 0;
@@ -1253,15 +1252,14 @@ void fatal(char *mesg, void *left, ...){
 		printf(" This package could not be installed. Continue anyway? [y/N] ");
 		fflush(stdout);
 
-		char yn;
-		scanf(" %c", &yn);
-		switch(yn){
+		char yn[2];
+		fgets(yn, 2, stdin);
+		switch(yn[0]){
 			case 'y':
 			case 'Y':
 				return;
 			case 'n':
 			case 'N':
-				exit(EXIT_FAILURE);
 			default:
 				exit(EXIT_FAILURE);
 		}

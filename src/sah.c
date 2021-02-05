@@ -112,18 +112,20 @@ int main(int argc, char *argv[]){
             }
             install = aur_request(&targets, AUR_INSTALL, curl);
         }
-    }
 
-    if(update)
-        to_upgrade = alpm_list_join(update, install);
-    else
-        to_upgrade = alpm_list_join(install, update);
+        if(update){
+    		update = exclude(update);
+            to_upgrade = alpm_list_join(update, install);
+        }
+        else
+            to_upgrade = alpm_list_join(install, update);
     
 
-    if(to_upgrade)
-        aur_upgrade(to_upgrade, curl);
-    else
-        printf(" there is nothing to do.\n");
+        if(to_upgrade)
+            aur_upgrade(to_upgrade, curl);
+        else
+            printf(" there is nothing to do.\n");
+    }
 
     free(config.lang);
     free(config.aur_url);

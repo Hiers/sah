@@ -82,6 +82,8 @@ void aur_upgrade(alpm_list_t *to_upgrade, CURL *curl);
  * Returns alpm_list_t of packages to upgrade
  */
 alpm_list_t* aur_request (alpm_list_t **targets, aurrequest_t type, CURL *curl);
+alpm_list_t* aur_request_info (alpm_list_t **targets, CURL *curl);
+alpm_list_t* exclude(alpm_list_t* excl);
 
 /*
  * aur_get_str() get info for package

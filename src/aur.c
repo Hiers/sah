@@ -741,7 +741,55 @@ alpm_list_t* exclude(alpm_list_t *excl){
 	return excl;
 }
 
-int install(aurpkg_t* pkg, alpm_list_t *t){
+alpm_list_t* aur_dependencies(alpm_list_t *t, CURL *curl, int swtch){
+
+	aurpkg_t *pkg = NULL;
+	alpm_list_t *deps_r = NULL;
+	for(alpm_list_t *i = t; i; i = alpm_list_next(i)){
+		pkg = i->data;
+		deps_r = NULL;
+		alpm_list_t *d = NULL;
+		switch(swtch){
+			case 0:
+			default:
+				d = pkg->depends;
+				break;
+			case 1:
+				d = pkg->makedepends;
+				break;
+		}
+		for(; d; d = alpm_list_next(d)){
+		
+			/*
+			 * some dependencies will have names that will confuse sah
+			 * (like pacman>5 in yay)
+			 * substitute it with \0 and job's done
+			 */
+			char *string = d->data;
+			while(*string){
+				if(*string == '>' || *string == '<'){
+					*string = '\0';
+					break;
+				}
+				string++;
+			}
+
+			if(get_sync_pkg_by_name((const char*)d->data))
+				continue;
+			deps_r = alpm_list_add(deps_r, strdup(d->data));
+		}
+	}
+		if(deps_r){
+			deps_r = aur_request_info(&deps_r, curl);
+
+			alpm_list_t *a = aur_dependencies(deps_r, curl, swtch);
+			if(a)
+				deps_r = alpm_list_join(deps_r, a);
+		}
+		return deps_r;
+}
+
+int install(aurpkg_t* pkg, alpm_list_t *t, char *dep){
 
 	/*
 	 * exec will substitute current process with makepkg
@@ -757,24 +805,7 @@ int install(aurpkg_t* pkg, alpm_list_t *t){
 
 		if(chdir(path))
 			fatal("Failed to change directory", alpm_list_next(t));
-		char yn;
-		char dep[3];
-		printf(" Remove make dependencies after compilation? [Y/n] ");
-		fflush(stdout);
-		scanf(" %c", &yn);
-		switch(yn){
-			case 'y':
-			case 'Y':
-				strcpy(dep, "-r");
-				break;
-			case 'n':
-			case 'N':
-				strcpy(dep, "");
-				break;
-			default:
-				strcpy(dep, "-r");
-				break;
-		}
+		
 
 		/*
 		 * see comment at the start of sah.c
@@ -793,11 +824,60 @@ int install(aurpkg_t* pkg, alpm_list_t *t){
 
 	
 void aur_upgrade(alpm_list_t *to_upgrade, CURL *curl){
-	aurpkg_t * pkg;
+	//aurpkg_t *pkg;
+	//alpm_list_t *deps = NULL, *makedeps = NULL;
 	int r = 0;
+	
+	/*
+	deps = aur_dependencies(to_upgrade, curl, 0);
+	makedeps = aur_dependencies(to_upgrade, curl, 1);
+	
+	//alpm_list_remove_dupes(deps); might be needed in the future 
+	printf("\033[1mAUR dependencies\033[22m [%lu]: ", alpm_list_count(deps));
+	for(alpm_list_t *A = deps; A; A = alpm_list_next(A)){
+		pkg = A->data;
+		printf("%s  ", pkg->name);
+	}
+
+	printf("\n\n\033[1mAUR make dependencies\033[22m [%lu]: ", alpm_list_count(makedeps));
+	for(alpm_list_t *A = makedeps; A; A = alpm_list_next(A)){
+		pkg = A->data;
+		printf("%s  ", pkg->name);
+	}
+	
+	printf("\n");
+	return;
+	*/
+	//only ask if there ARE make dependencies
+	if(deps || makedeps){
+		char yn[2];
+		char dep[3];
+		printf(" Remove make dependencies after compilation? [Y/n] ");
+	
+		fgets(yn, 2, stdin);
+		switch(yn[0]){
+			case 'y':
+			case 'Y':
+				strcpy(dep, "-r");
+				break;
+			case 'n':
+			case 'N':
+				strcpy(dep, "");
+				break;
+			default:
+				strcpy(dep, "-r");
+				break;
+		}
+	}
 
 	if(config.filter & F_SYNC)
 		printf("++ Starting AUR upgrade...\n");
+	/*
+	alpm_list_free_inner(deps, (alpm_list_fn_free) aur_pkg_free);
+	alpm_list_free(deps);
+	alpm_list_free_inner(makedeps, (alpm_list_fn_free) aur_pkg_free);
+	alpm_list_free(makedeps);
+	*/
 
 	for(const alpm_list_t *t = to_upgrade; t; t = alpm_list_next(t)){
 		pkg = t->data;
@@ -839,7 +919,7 @@ void aur_upgrade(alpm_list_t *to_upgrade, CURL *curl){
 			continue;
 		}
 
-		install(pkg, alpm_list_next(t));
+		install(pkg, alpm_list_next(t), dep);
 	}
 }
 
@@ -890,10 +970,9 @@ alpm_list_t* aur_request_info (alpm_list_t **targets, CURL *curl)
 		}
 		
 		//call aur rpc web interface and parse returned json file
-		pkgs = aur_json_parse (curl_fetch (curl, string_cstr (url)), NULL);
+		if(!(pkgs = aur_json_parse (curl_fetch (curl, string_cstr (url)), NULL)))
+			fatal("Could not reach the AUR", NULL);
 		string_free (url);
-
-		if(pkgs)
 
 		if(config.filter & F_SYNC){
 			for (alpm_list_t *p = pkgs; p; p = alpm_list_next (p)) {
@@ -926,8 +1005,6 @@ alpm_list_t* aur_request_info (alpm_list_t **targets, CURL *curl)
 				else
 					pkgs = alpm_list_remove_item(pkgs, p);
 			}
-			if(pkgs_found)
-				pkgs = exclude(pkgs);
 		}
 
 		

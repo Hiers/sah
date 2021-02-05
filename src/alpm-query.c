@@ -211,7 +211,7 @@ bool init_db_sync (void)
 	return parse_configfile (NULL, config.configfile, true);
 }
 
-static alpm_pkg_t *get_sync_pkg_by_name (const char *pkgname)
+alpm_pkg_t *get_sync_pkg_by_name (const char *pkgname)
 {
 	alpm_pkg_t *sync_pkg = NULL;
 	for (const alpm_list_t *i = alpm_get_syncdbs (config.handle); i; i = alpm_list_next (i)) {
